@@ -90,7 +90,7 @@
                 <!-- Present -->
                 <div class="bg-green-50 border-2 border-green-200 rounded-xl p-4">
                     <h2 class="text-lg font-semibold text-green-800">Present</h2>
-                    <p id="present-count" class="text-5xl font-bold text-green-600 mt-2">50</p>
+                    <p id="present-count" class="text-5xl font-bold text-green-600 mt-2">0</p>
                 </div>
                 <!-- Sick -->
                 <div class="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex flex-col justify-between">
@@ -175,13 +175,13 @@
         const presentCountDisplay = document.getElementById('present-count');
         const sickCountDisplay = document.getElementById('sick-count');
         const absenceCountDisplay = document.getElementById('absence-count');
-
+        
         const incrementSickBtn = document.getElementById('increment-sick');
         const decrementSickBtn = document.getElementById('decrement-sick');
         const incrementAbsenceBtn = document.getElementById('increment-absence');
         const decrementAbsenceBtn = document.getElementById('decrement-absence');
 
-        const saveBtn = document.getElementById('save-btn'); // New save button
+        const saveBtn = document.getElementById('save-btn');
         const resetBtn = document.getElementById('reset-btn');
         const deleteClassBtn = document.getElementById('delete-class-btn');
 
@@ -412,9 +412,9 @@
             const cls = appState.classes[appState.selectedClass];
             const date = attendanceDateInput.value || todayDateStr();
             const record = (cls.records && cls.records[date]) ? cls.records[date] : { sickCount: 0, absenceCount: 0 };
-
-            totalStrengthInput.value = cls.totalStrength;
+            
             const present = cls.totalStrength - record.sickCount - record.absenceCount;
+            totalStrengthInput.value = cls.totalStrength;
             presentCountDisplay.textContent = Math.max(0, present);
             sickCountDisplay.textContent = record.sickCount;
             absenceCountDisplay.textContent = record.absenceCount;
@@ -477,13 +477,12 @@
                     saveData(appState.selectedClass, updatedClassData);
                 };
             }
-
+            
             incrementSickBtn.addEventListener('click', createCountHandler('sickCount', true));
             decrementSickBtn.addEventListener('click', createCountHandler('sickCount', false));
             incrementAbsenceBtn.addEventListener('click', createCountHandler('absenceCount', true));
             decrementAbsenceBtn.addEventListener('click', createCountHandler('absenceCount', false));
 
-            // New save button event listener
             saveBtn.addEventListener('click', () => {
                 if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
                 const cls = appState.classes[appState.selectedClass];
