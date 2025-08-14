@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Daily Attendance Tracker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .btn { transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out; }
+        .btn:active { transform: scale(0.95); }
+        #new-class-section { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+<div class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-lg p-6 md:p-8">
+    <header class="mb-6 text-center">
+        <h1 class="text-3xl font-bold text-gray-800">Daily Attendance Tracker</h1>
+        <p class="text-gray-500 mt-1">Track per-day attendance for multiple classes.</p>
+        <div id="user-info" class="text-xs text-gray-400 mt-2"></div>
+    </header>
+
+    <main>
+        <!-- Loading Indicator -->
+        <div id="loading-indicator" class="text-center text-gray-500 mb-4" style="display: none;">
+            <svg class="animate-spin h-5 w-5 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Loading data...
+        </div>
+
+        <!-- Overall Summary -->
+        <div id="overall-summary-section" class="mb-6">
+            <h2 class="text-lg font-semibold text-gray-700 text-center mb-3">Overall Summary (Today)</h2>
+            <div class="grid grid-cols-3 gap-2 text-center bg-gray-50 p-3 rounded-lg border">
+                <div>
+                    <h3 class="text-sm font-medium text-green-700">Present</h3>
+                    <p id="total-present-all" class="text-2xl font-bold text-green-600">0</p>
+                </div>
+                <div>
+                    <h3 class="text-sm font-medium text-red-700">Sick</h3>
+                    <p id="total-sick-all" class="text-2xl font-bold text-red-600">0</p>
+                </div>
+                <div>
+                    <h3 class="text-sm font-medium text-yellow-700">Absent</h3>
+                    <p id="total-absence-all" class="text-2xl font-bold text-yellow-600">0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Class Management -->
+        <div class="bg-gray-50 rounded-lg p-4 mb-4 border">
+            <label for="class-selector" class="block text-sm font-medium text-gray-700 mb-1">Select Class</label>
+            <div class="flex items-center gap-2">
+                <select id="class-selector" class="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></select>
+                <button id="add-class-btn" class="btn bg-blue-500 text-white rounded-md p-2 hover:bg-blue-600 text-sm whitespace-nowrap">Add New</button>
+            </div>
+            <div id="new-class-section" class="mt-2">
+                <input type="text" id="new-class-name" placeholder="Enter new class name" class="w-full p-2 border-gray-300 rounded-md">
+                <div class="flex gap-2 mt-2">
+                    <button id="save-new-class-btn" class="btn w-full bg-green-500 text-white rounded-md p-2 hover:bg-green-600 text-sm">Save</button>
+                    <button id="cancel-new-class-btn" class="btn w-full bg-gray-300 text-gray-800 rounded-md p-2 hover:bg-gray-400 text-sm">Cancel</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Date Picker -->
+        <div class="mb-6">
+            <label for="attendance-date" class="block text-sm font-medium text-gray-700 mb-1">Select Date</label>
+            <input type="date" id="attendance-date" class="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+        </div>
+
+        <div id="attendance-body">
+            <!-- Total Strength -->
+            <div class="mb-6">
+                <label for="total-strength" class="block text-lg font-medium text-gray-700 mb-2">Total Strength</label>
+                <input type="number" id="total-strength" value="50" class="w-full p-3 text-center text-2xl font-semibold bg-gray-50 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+
+            <!-- Attendance Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                <!-- Present -->
+                <div class="bg-green-50 border-2 border-green-200 rounded-xl p-4">
+                    <h2 class="text-lg font-semibold text-green-800">Present</h2>
+                    <p id="present-count" class="text-5xl font-bold text-green-600 mt-2">50</p>
+                </div>
+                <!-- Sick -->
+                <div class="bg-red-50 border-2 border-red-200 rounded-xl p-4 flex flex-col justify-between">
+                    <h2 class="text-lg font-semibold text-red-800">Sick</h2>
+                    <p id="sick-count" class="text-5xl font-bold text-red-600 my-2">0</p>
+                    <div class="flex justify-center items-center space-x-3">
+                        <button id="decrement-sick" class="btn bg-red-200 text-red-700 w-10 h-10 rounded-full text-2xl font-bold hover:bg-red-300">-</button>
+                        <button id="increment-sick" class="btn bg-red-200 text-red-700 w-10 h-10 rounded-full text-2xl font-bold hover:bg-red-300">+</button>
+                    </div>
+                </div>
+                <!-- Absent -->
+                <div class="bg-yellow-50 border-2 border-yellow-200 rounded-xl p-4 flex flex-col justify-between">
+                    <h2 class="text-lg font-semibold text-yellow-800">Absent</h2>
+                    <p id="absence-count" class="text-5xl font-bold text-yellow-600 my-2">0</p>
+                    <div class="flex justify-center items-center space-x-3">
+                        <button id="decrement-absence" class="btn bg-yellow-200 text-yellow-700 w-10 h-10 rounded-full text-2xl font-bold hover:bg-yellow-300">-</button>
+                        <button id="increment-absence" class="btn bg-yellow-200 text-yellow-700 w-10 h-10 rounded-full text-2xl font-bold hover:bg-yellow-300">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-8 grid grid-cols-2 gap-4">
+                <button id="reset-btn" class="btn w-full bg-gray-700 text-white font-semibold py-3 rounded-lg hover:bg-gray-800">Reset</button>
+                <button id="delete-class-btn" class="btn w-full bg-red-600 text-white font-semibold py-3 rounded-lg hover:bg-red-700">Delete Class</button>
+            </div>
+        </div>
+
+        <!-- No Class Placeholder -->
+        <div id="no-class-placeholder" class="text-center py-10 px-4">
+            <h3 class="text-xl font-semibold text-gray-700">No classes found.</h3>
+            <p class="text-gray-500 mt-2">Click "Add New" to create your first class.</p>
+        </div>
+    </main>
+</div>
+
+<script type="module">
+    // Firebase SDK imports
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // UI elements
+        const classSelector = document.getElementById('class-selector');
+        const addClassBtn = document.getElementById('add-class-btn');
+        const newClassSection = document.getElementById('new-class-section');
+        const newClassNameInput = document.getElementById('new-class-name');
+        const saveNewClassBtn = document.getElementByI
