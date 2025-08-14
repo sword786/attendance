@@ -126,6 +126,14 @@
         </div>
     </main>
 </div>
+<!-- Message Box (for user feedback) -->
+<div id="message-box" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4" style="display: none;">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full text-center shadow-lg">
+        <p id="message-text" class="text-gray-700 mb-4"></p>
+        <button id="message-close-btn" class="btn bg-blue-500 text-white rounded-md p-2 w-24 hover:bg-blue-600">OK</button>
+    </div>
+</div>
+
 <!-- Service worker registration for PWA -->
 <script>
     if ('serviceWorker' in navigator) {
@@ -182,6 +190,10 @@
         const userInfoDiv = document.getElementById('user-info');
         const loadingIndicator = document.getElementById('loading-indicator');
 
+        const messageBox = document.getElementById('message-box');
+        const messageText = document.getElementById('message-text');
+        const messageCloseBtn = document.getElementById('message-close-btn');
+
         // Global state
         let appState = {
             classes: {},
@@ -190,11 +202,17 @@
         };
         let db, auth, userId;
         let isAuthReady = false;
-        
+
         // Use the globally provided Firebase config from the Canvas environment
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfigFromEnv = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Utility function to show messages to the user
+        function showMessage(text) {
+            messageText.textContent = text;
+            messageBox.style.display = 'flex';
+        }
 
         // Firebase & Firestore setup
         try {
@@ -203,10 +221,10 @@
                 db = getFirestore(firebaseApp);
                 auth = getAuth(firebaseApp);
             } else {
-                console.error("Firebase config is empty. The app cannot initialize.");
+                showMessage("App configuration is missing. The tracker cannot initialize.");
             }
         } catch (e) {
-            console.error("Firebase initialization failed:", e);
+            showMessage(`Firebase initialization failed: ${e.message}`);
         }
 
         // Firebase authentication
@@ -221,11 +239,14 @@
                     console.warn("Signed in anonymously as no custom token was provided.");
                 }
             } catch (error) {
+                showMessage(`Authentication failed: ${error.message}`);
                 console.error("Firebase Auth Error:", error);
             }
         }
 
         onAuthStateChanged(auth, async (user) => {
+            loadingIndicator.style.display = 'none';
+            appContainer.classList.remove('disabled-ui');
             if (user) {
                 userId = user.uid;
                 isAuthReady = true;
@@ -275,7 +296,7 @@
                     newClasses[doc.id] = doc.data();
                 });
                 appState.classes = newClasses;
-                
+
                 // Now that we have data, we can render the UI
                 if (Object.keys(newClasses).length > 0) {
                     classManagementSection.style.display = 'block';
@@ -290,6 +311,7 @@
                 renderOverallSummary();
             }, (error) => {
                 console.error("Error fetching data:", error);
+                showMessage(`Error fetching data: ${error.message}`);
             });
         }
 
@@ -300,6 +322,7 @@
                 const docRef = doc(db, `artifacts/${appId}/users/${userId}/classes`, className);
                 await fetchWithBackoff(setDoc, docRef, data);
             } catch (e) {
+                showMessage(`Error writing document: ${e.message}`);
                 console.error("Error writing document: ", e);
             }
         }
@@ -311,6 +334,7 @@
                 const docRef = doc(db, `artifacts/${appId}/users/${userId}/classes`, className);
                 await fetchWithBackoff(deleteDoc, docRef);
             } catch (e) {
+                showMessage(`Error deleting document: ${e.message}`);
                 console.error("Error deleting document: ", e);
             }
         }
@@ -422,7 +446,7 @@
                     const date = attendanceDateInput.value || todayDateStr();
                     const currentRecords = cls.records || {};
                     const currentRecord = currentRecords[date] || { sickCount: 0, absenceCount: 0 };
-                    
+
                     let newCount = currentRecord[key];
                     if (increment) {
                         if (currentRecord.sickCount + currentRecord.absenceCount < cls.totalStrength) {
@@ -459,6 +483,11 @@
                 if (!appState.selectedClass) return;
                 deleteClass(appState.selectedClass);
             });
+
+            // Close message box
+            messageCloseBtn.addEventListener('click', () => {
+                messageBox.style.display = 'none';
+            });
         }
 
         // Initialize the app on page load
@@ -468,14 +497,7 @@
             authenticateUser();
             attendanceDateInput.value = todayDateStr();
             appState.selectedDate = todayDateStr();
-
-            // Set up event listeners after authentication is ready
-            onAuthStateChanged(auth, user => {
-                if (user) {
-                    // Set up event listeners once user is authenticated
-                    setupEventListeners();
-                }
-            });
+            setupEventListeners();
         }
 
         initialize();
