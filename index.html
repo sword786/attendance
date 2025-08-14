@@ -207,7 +207,7 @@
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfigFromEnv = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
+        
         // Utility function to show messages to the user
         function showMessage(text) {
             messageText.textContent = text;
@@ -221,6 +221,7 @@
                 db = getFirestore(firebaseApp);
                 auth = getAuth(firebaseApp);
             } else {
+                // This is the correct fallback if no config is present.
                 showMessage("App configuration is missing. The tracker cannot initialize.");
             }
         } catch (e) {
