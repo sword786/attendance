@@ -127,8 +127,8 @@
 <script type="module">
     // Firebase SDK imports
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
     document.addEventListener('DOMContentLoaded', () => {
         // UI elements
@@ -136,4 +136,310 @@
         const addClassBtn = document.getElementById('add-class-btn');
         const newClassSection = document.getElementById('new-class-section');
         const newClassNameInput = document.getElementById('new-class-name');
-        const saveNewClassBtn = document.getElementByI
+        const saveNewClassBtn = document.getElementById('save-new-class-btn');
+        const cancelNewClassBtn = document.getElementById('cancel-new-class-btn');
+
+        const attendanceDateInput = document.getElementById('attendance-date');
+        const attendanceBody = document.getElementById('attendance-body');
+        const noClassPlaceholder = document.getElementById('no-class-placeholder');
+        const overallSummarySection = document.getElementById('overall-summary-section');
+
+        const totalStrengthInput = document.getElementById('total-strength');
+        const presentCountDisplay = document.getElementById('present-count');
+        const sickCountDisplay = document.getElementById('sick-count');
+        const absenceCountDisplay = document.getElementById('absence-count');
+
+        const incrementSickBtn = document.getElementById('increment-sick');
+        const decrementSickBtn = document.getElementById('decrement-sick');
+        const incrementAbsenceBtn = document.getElementById('increment-absence');
+        const decrementAbsenceBtn = document.getElementById('decrement-absence');
+
+        const resetBtn = document.getElementById('reset-btn');
+        const deleteClassBtn = document.getElementById('delete-class-btn');
+
+        const totalPresentAll = document.getElementById('total-present-all');
+        const totalSickAll = document.getElementById('total-sick-all');
+        const totalAbsenceAll = document.getElementById('total-absence-all');
+        const userInfoDiv = document.getElementById('user-info');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // Global state
+        let appState = {
+            classes: {},
+            selectedClass: null,
+            selectedDate: null
+        };
+        let db, auth, userId;
+        let isAuthReady = false;
+        
+        const firebaseConfig = {
+            apiKey: "AIzaSyBlCGUGzr-oul44xRoK2q1Mzqs21IbIp5A",
+            authDomain: "attendance-d.firebaseapp.com",
+            projectId: "attendance-d",
+            storageBucket: "attendance-d.firebasestorage.app",
+            messagingSenderId: "1074115980887",
+            appId: "1:1074115980887:web:61399f392a3b365745fd12",
+            measurementId: "G-V1CJMYHX3Q"
+        };
+        // Firebase global variables
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfigFromEnv = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        // Firebase & Firestore setup
+        let projectId;
+        try {
+            if (Object.keys(firebaseConfigFromEnv).length > 0) {
+                const firebaseApp = initializeApp(firebaseConfigFromEnv);
+                db = getFirestore(firebaseApp);
+                auth = getAuth(firebaseApp);
+                projectId = firebaseConfigFromEnv.projectId;
+            } else {
+                console.error("Firebase config is empty. Please paste your config object.");
+            }
+        } catch (e) {
+            console.error("Firebase initialization failed:", e);
+        }
+
+        // Firebase authentication
+        async function authenticateUser() {
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Firebase Auth Error:", error);
+            }
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                isAuthReady = true;
+                userInfoDiv.textContent = `User ID: ${userId}`;
+                console.log("Authenticated with user ID:", userId);
+                startDataListener();
+            } else {
+                console.log("No user is signed in. Signing in anonymously.");
+                isAuthReady = false;
+                await authenticateUser();
+            }
+        });
+
+        // Helper function for exponential backoff
+        async function fetchWithBackoff(func, ...args) {
+            let attempt = 0;
+            const maxAttempts = 5;
+            while (attempt < maxAttempts) {
+                try {
+                    return await func(...args);
+                } catch (error) {
+                    if (error.code === 'resource-exhausted') {
+                        attempt++;
+                        const delay = Math.pow(2, attempt) * 1000;
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        console.log(`Retrying API call (attempt ${attempt})...`);
+                    } else {
+                        throw error;
+                    }
+                }
+            }
+            throw new Error(`Failed to complete call after ${maxAttempts} attempts.`);
+        }
+
+        // Firestore real-time listener for classes
+        function startDataListener() {
+            if (!isAuthReady || !projectId) return;
+            const classesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/classes`);
+            onSnapshot(classesCollectionRef, (snapshot) => {
+                loadingIndicator.style.display = 'none';
+                const newClasses = {};
+                snapshot.forEach(doc => {
+                    newClasses[doc.id] = doc.data();
+                });
+                appState.classes = newClasses;
+                renderClassSelector();
+                renderOverallSummary();
+            }, (error) => {
+                console.error("Error fetching data:", error);
+            });
+        }
+
+        // Save data to Firestore
+        async function saveData(className, data) {
+            if (!isAuthReady || !projectId) return;
+            try {
+                const docRef = doc(db, `artifacts/${appId}/users/${userId}/classes`, className);
+                await fetchWithBackoff(setDoc, docRef, data);
+            } catch (e) {
+                console.error("Error writing document: ", e);
+            }
+        }
+
+        // Delete class from Firestore
+        async function deleteClass(className) {
+            if (!isAuthReady || !projectId) return;
+            try {
+                const docRef = doc(db, `artifacts/${appId}/users/${userId}/classes`, className);
+                await fetchWithBackoff(deleteDoc, docRef);
+            } catch (e) {
+                console.error("Error deleting document: ", e);
+            }
+        }
+
+        // --- UI Rendering Functions ---
+
+        function todayDateStr() {
+            return new Date().toISOString().split('T')[0];
+        }
+
+        function renderOverallSummary() {
+            let totalStrength = 0, totalSick = 0, totalAbsence = 0;
+            const date = attendanceDateInput.value || todayDateStr();
+            for (const className in appState.classes) {
+                const cls = appState.classes[className];
+                if (cls.records && cls.records[date]) {
+                    const record = cls.records[date];
+                    totalStrength += cls.totalStrength;
+                    totalSick += record.sickCount;
+                    totalAbsence += record.absenceCount;
+                }
+            }
+            const totalPresent = Math.max(0, totalStrength - totalSick - totalAbsence);
+            totalPresentAll.textContent = totalPresent;
+            totalSickAll.textContent = totalSick;
+            totalAbsenceAll.textContent = totalAbsence;
+        }
+
+        function renderClassSelector() {
+            classSelector.innerHTML = '';
+            const classNames = Object.keys(appState.classes);
+            if (classNames.length === 0) {
+                attendanceBody.style.display = 'none';
+                overallSummarySection.style.display = 'none';
+                noClassPlaceholder.style.display = 'block';
+                appState.selectedClass = null;
+            } else {
+                attendanceBody.style.display = 'block';
+                overallSummarySection.style.display = 'block';
+                noClassPlaceholder.style.display = 'none';
+                classNames.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    classSelector.appendChild(opt);
+                });
+                if (!appState.selectedClass || !appState.classes[appState.selectedClass]) {
+                    appState.selectedClass = classNames[0];
+                }
+                classSelector.value = appState.selectedClass;
+            }
+            renderCurrentClassView();
+        }
+
+        function renderCurrentClassView() {
+            if (!appState.selectedClass || !appState.classes[appState.selectedClass]) {
+                return;
+            }
+            const cls = appState.classes[appState.selectedClass];
+            const date = attendanceDateInput.value || todayDateStr();
+            const record = (cls.records && cls.records[date]) ? cls.records[date] : { sickCount: 0, absenceCount: 0 };
+
+            totalStrengthInput.value = cls.totalStrength;
+            const present = cls.totalStrength - record.sickCount - record.absenceCount;
+            presentCountDisplay.textContent = Math.max(0, present);
+            sickCountDisplay.textContent = record.sickCount;
+            absenceCountDisplay.textContent = record.absenceCount;
+        }
+
+        // --- Event Listeners ---
+
+        addClassBtn.addEventListener('click', () => { newClassSection.style.display = 'block'; newClassNameInput.focus(); });
+        cancelNewClassBtn.addEventListener('click', () => { newClassSection.style.display = 'none'; newClassNameInput.value = ''; });
+        saveNewClassBtn.addEventListener('click', () => {
+            const name = newClassNameInput.value.trim();
+            if (name && !appState.classes[name]) {
+                const newClassData = { totalStrength: 50, records: {} };
+                saveData(name, newClassData);
+                newClassNameInput.value = '';
+                newClassSection.style.display = 'none';
+            }
+        });
+
+        classSelector.addEventListener('change', e => {
+            appState.selectedClass = e.target.value;
+            renderCurrentClassView();
+        });
+
+        attendanceDateInput.addEventListener('change', e => {
+            appState.selectedDate = e.target.value;
+            renderOverallSummary();
+            renderCurrentClassView();
+        });
+
+        totalStrengthInput.addEventListener('input', () => {
+            if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
+            const newStrength = parseInt(totalStrengthInput.value) || 0;
+            const currentData = { ...appState.classes[appState.selectedClass], totalStrength: newStrength };
+            saveData(appState.selectedClass, currentData);
+        });
+
+        function createCountHandler(key, increment) {
+            return () => {
+                if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
+                const cls = appState.classes[appState.selectedClass];
+                const date = attendanceDateInput.value || todayDateStr();
+                const currentRecords = cls.records || {};
+                const currentRecord = currentRecords[date] || { sickCount: 0, absenceCount: 0 };
+                
+                let newCount = currentRecord[key];
+                if (increment) {
+                    if (currentRecord.sickCount + currentRecord.absenceCount < cls.totalStrength) {
+                        newCount++;
+                    }
+                } else {
+                    if (newCount > 0) {
+                        newCount--;
+                    }
+                }
+
+                const newRecords = { ...currentRecords, [date]: { ...currentRecord, [key]: newCount } };
+                const updatedClassData = { ...cls, records: newRecords };
+                saveData(appState.selectedClass, updatedClassData);
+            };
+        }
+
+        incrementSickBtn.addEventListener('click', createCountHandler('sickCount', true));
+        decrementSickBtn.addEventListener('click', createCountHandler('sickCount', false));
+        incrementAbsenceBtn.addEventListener('click', createCountHandler('absenceCount', true));
+        decrementAbsenceBtn.addEventListener('click', createCountHandler('absenceCount', false));
+
+        resetBtn.addEventListener('click', () => {
+            if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
+            const cls = appState.classes[appState.selectedClass];
+            const date = attendanceDateInput.value || todayDateStr();
+            const currentRecords = cls.records || {};
+            const newRecords = { ...currentRecords, [date]: { sickCount: 0, absenceCount: 0 } };
+            const updatedClassData = { ...cls, records: newRecords };
+            saveData(appState.selectedClass, updatedClassData);
+        });
+
+        deleteClassBtn.addEventListener('click', () => {
+            if (!appState.selectedClass) return;
+            deleteClass(appState.selectedClass);
+        });
+
+        function initialize() {
+            loadingIndicator.style.display = 'block';
+            authenticateUser();
+            attendanceDateInput.value = todayDateStr();
+            appState.selectedDate = todayDateStr();
+        }
+
+        initialize();
+    });
+</script>
+</body>
+</html>
