@@ -203,10 +203,16 @@
         let db, auth, userId;
         let isAuthReady = false;
 
-        // Use the globally provided Firebase config from the Canvas environment
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfigFromEnv = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // Firebase config provided by the user
+        const firebaseConfig = {
+            apiKey: "AIzaSyBlCGUGzr-oul44xRoK2q1Mzqs21IbIp5A",
+            authDomain: "attendance-d.firebaseapp.com",
+            projectId: "attendance-d",
+            storageBucket: "attendance-d.firebasestorage.app",
+            messagingSenderId: "1074115980887",
+            appId: "1:1074115980887:web:61399f392a3b365745fd12",
+            measurementId: "G-V1CJMYHX3Q"
+        };
         
         // Utility function to show messages to the user
         function showMessage(text) {
@@ -216,12 +222,14 @@
 
         // Firebase & Firestore setup
         try {
+            // Use the globally provided Firebase config if available, otherwise use the user's hardcoded config.
+            const firebaseConfigFromEnv = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+            
             if (Object.keys(firebaseConfigFromEnv).length > 0) {
                 const firebaseApp = initializeApp(firebaseConfigFromEnv);
                 db = getFirestore(firebaseApp);
                 auth = getAuth(firebaseApp);
             } else {
-                // This is the correct fallback if no config is present.
                 showMessage("App configuration is missing. The tracker cannot initialize.");
             }
         } catch (e) {
@@ -231,13 +239,14 @@
         // Firebase authentication
         async function authenticateUser() {
             try {
+                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                     console.log("Successfully signed in with custom token.");
                 } else {
                     // Fallback to anonymous sign-in if the custom token is not available
                     await signInAnonymously(auth);
-                    console.warn("Signed in anonymously as no custom token was provided.");
+                    console.log("Signed in anonymously as no custom token was provided.");
                 }
             } catch (error) {
                 showMessage(`Authentication failed: ${error.message}`);
@@ -286,6 +295,7 @@
         function startDataListener() {
             if (!isAuthReady || !db) return;
             console.log("Starting Firestore data listener...");
+            const appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
             const classesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/classes`);
             onSnapshot(classesCollectionRef, (snapshot) => {
                 console.log("Received data from Firestore.");
@@ -320,6 +330,7 @@
         async function saveData(className, data) {
             if (!isAuthReady || !db) return;
             try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
                 const docRef = doc(db, `artifacts/${appId}/users/${userId}/classes`, className);
                 await fetchWithBackoff(setDoc, docRef, data);
             } catch (e) {
@@ -332,6 +343,7 @@
         async function deleteClass(className) {
             if (!isAuthReady || !db) return;
             try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
                 const docRef = doc(db, `artifacts/${appId}/users/${userId}/classes`, className);
                 await fetchWithBackoff(deleteDoc, docRef);
             } catch (e) {
