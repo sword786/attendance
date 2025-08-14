@@ -15,6 +15,7 @@
         .btn { transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out; }
         .btn:active { transform: scale(0.95); }
         #new-class-section { display: none; }
+        .disabled-ui { pointer-events: none; opacity: 0.6; }
     </style>
 </head>
 <body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
@@ -26,10 +27,10 @@
         <div id="user-info" class="text-xs text-gray-400 mt-2"></div>
     </header>
 
-    <main>
+    <main id="app-container">
         <!-- Loading Indicator -->
-        <div id="loading-indicator" class="text-center text-gray-500 mb-4" style="display: none;">
-            <svg class="animate-spin h-5 w-5 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <div id="loading-indicator" class="text-center text-gray-500 mb-4 py-10">
+            <svg class="animate-spin h-8 w-8 text-blue-500 mx-auto mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
@@ -37,7 +38,7 @@
         </div>
 
         <!-- Overall Summary -->
-        <div id="overall-summary-section" class="mb-6">
+        <div id="overall-summary-section" class="mb-6" style="display: none;">
             <h2 class="text-lg font-semibold text-gray-700 text-center mb-3">Overall Summary (Today)</h2>
             <div class="grid grid-cols-3 gap-2 text-center bg-gray-50 p-3 rounded-lg border">
                 <div>
@@ -56,7 +57,7 @@
         </div>
 
         <!-- Class Management -->
-        <div class="bg-gray-50 rounded-lg p-4 mb-4 border">
+        <div id="class-management-section" class="bg-gray-50 rounded-lg p-4 mb-4 border" style="display: none;">
             <label for="class-selector" class="block text-sm font-medium text-gray-700 mb-1">Select Class</label>
             <div class="flex items-center gap-2">
                 <select id="class-selector" class="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></select>
@@ -72,12 +73,12 @@
         </div>
 
         <!-- Date Picker -->
-        <div class="mb-6">
+        <div id="date-picker-section" class="mb-6" style="display: none;">
             <label for="attendance-date" class="block text-sm font-medium text-gray-700 mb-1">Select Date</label>
             <input type="date" id="attendance-date" class="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
         </div>
 
-        <div id="attendance-body">
+        <div id="attendance-body" style="display: none;">
             <!-- Total Strength -->
             <div class="mb-6">
                 <label for="total-strength" class="block text-lg font-medium text-gray-700 mb-2">Total Strength</label>
@@ -119,7 +120,7 @@
         </div>
 
         <!-- No Class Placeholder -->
-        <div id="no-class-placeholder" class="text-center py-10 px-4">
+        <div id="no-class-placeholder" class="text-center py-10 px-4" style="display: none;">
             <h3 class="text-xl font-semibold text-gray-700">No classes found.</h3>
             <p class="text-gray-500 mt-2">Click "Add New" to create your first class.</p>
         </div>
@@ -146,6 +147,7 @@
 
     document.addEventListener('DOMContentLoaded', () => {
         // UI elements
+        const appContainer = document.getElementById('app-container');
         const classSelector = document.getElementById('class-selector');
         const addClassBtn = document.getElementById('add-class-btn');
         const newClassSection = document.getElementById('new-class-section');
@@ -157,6 +159,9 @@
         const attendanceBody = document.getElementById('attendance-body');
         const noClassPlaceholder = document.getElementById('no-class-placeholder');
         const overallSummarySection = document.getElementById('overall-summary-section');
+        const classManagementSection = document.getElementById('class-management-section');
+        const datePickerSection = document.getElementById('date-picker-section');
+
 
         const totalStrengthInput = document.getElementById('total-strength');
         const presentCountDisplay = document.getElementById('present-count');
@@ -263,11 +268,24 @@
             onSnapshot(classesCollectionRef, (snapshot) => {
                 console.log("Received data from Firestore.");
                 loadingIndicator.style.display = 'none';
+                appContainer.classList.remove('disabled-ui');
+
                 const newClasses = {};
                 snapshot.forEach(doc => {
                     newClasses[doc.id] = doc.data();
                 });
                 appState.classes = newClasses;
+                
+                // Now that we have data, we can render the UI
+                if (Object.keys(newClasses).length > 0) {
+                    classManagementSection.style.display = 'block';
+                    datePickerSection.style.display = 'block';
+                    overallSummarySection.style.display = 'block';
+                } else {
+                    classManagementSection.style.display = 'block';
+                    noClassPlaceholder.style.display = 'block';
+                }
+
                 renderClassSelector();
                 renderOverallSummary();
             }, (error) => {
@@ -327,11 +345,13 @@
             if (classNames.length === 0) {
                 attendanceBody.style.display = 'none';
                 overallSummarySection.style.display = 'none';
+                datePickerSection.style.display = 'none';
                 noClassPlaceholder.style.display = 'block';
                 appState.selectedClass = null;
             } else {
                 attendanceBody.style.display = 'block';
                 overallSummarySection.style.display = 'block';
+                datePickerSection.style.display = 'block';
                 noClassPlaceholder.style.display = 'none';
                 classNames.forEach(name => {
                     const opt = document.createElement('option');
@@ -364,86 +384,98 @@
 
         // --- Event Listeners ---
 
-        addClassBtn.addEventListener('click', () => { newClassSection.style.display = 'block'; newClassNameInput.focus(); });
-        cancelNewClassBtn.addEventListener('click', () => { newClassSection.style.display = 'none'; newClassNameInput.value = ''; });
-        saveNewClassBtn.addEventListener('click', () => {
-            const name = newClassNameInput.value.trim();
-            if (name && !appState.classes[name]) {
-                const newClassData = { totalStrength: 50, records: {} };
-                saveData(name, newClassData);
-                newClassNameInput.value = '';
-                newClassSection.style.display = 'none';
+        function setupEventListeners() {
+            addClassBtn.addEventListener('click', () => { newClassSection.style.display = 'block'; newClassNameInput.focus(); });
+            cancelNewClassBtn.addEventListener('click', () => { newClassSection.style.display = 'none'; newClassNameInput.value = ''; });
+            saveNewClassBtn.addEventListener('click', () => {
+                const name = newClassNameInput.value.trim();
+                if (name && !appState.classes[name]) {
+                    const newClassData = { totalStrength: 50, records: {} };
+                    saveData(name, newClassData);
+                    newClassNameInput.value = '';
+                    newClassSection.style.display = 'none';
+                }
+            });
+
+            classSelector.addEventListener('change', e => {
+                appState.selectedClass = e.target.value;
+                renderCurrentClassView();
+            });
+
+            attendanceDateInput.addEventListener('change', e => {
+                appState.selectedDate = e.target.value;
+                renderOverallSummary();
+                renderCurrentClassView();
+            });
+
+            totalStrengthInput.addEventListener('input', () => {
+                if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
+                const newStrength = parseInt(totalStrengthInput.value) || 0;
+                const currentData = { ...appState.classes[appState.selectedClass], totalStrength: newStrength };
+                saveData(appState.selectedClass, currentData);
+            });
+
+            function createCountHandler(key, increment) {
+                return () => {
+                    if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
+                    const cls = appState.classes[appState.selectedClass];
+                    const date = attendanceDateInput.value || todayDateStr();
+                    const currentRecords = cls.records || {};
+                    const currentRecord = currentRecords[date] || { sickCount: 0, absenceCount: 0 };
+                    
+                    let newCount = currentRecord[key];
+                    if (increment) {
+                        if (currentRecord.sickCount + currentRecord.absenceCount < cls.totalStrength) {
+                            newCount++;
+                        }
+                    } else {
+                        if (newCount > 0) {
+                            newCount--;
+                        }
+                    }
+
+                    const newRecords = { ...currentRecords, [date]: { ...currentRecord, [key]: newCount } };
+                    const updatedClassData = { ...cls, records: newRecords };
+                    saveData(appState.selectedClass, updatedClassData);
+                };
             }
-        });
 
-        classSelector.addEventListener('change', e => {
-            appState.selectedClass = e.target.value;
-            renderCurrentClassView();
-        });
+            incrementSickBtn.addEventListener('click', createCountHandler('sickCount', true));
+            decrementSickBtn.addEventListener('click', createCountHandler('sickCount', false));
+            incrementAbsenceBtn.addEventListener('click', createCountHandler('absenceCount', true));
+            decrementAbsenceBtn.addEventListener('click', createCountHandler('absenceCount', false));
 
-        attendanceDateInput.addEventListener('change', e => {
-            appState.selectedDate = e.target.value;
-            renderOverallSummary();
-            renderCurrentClassView();
-        });
-
-        totalStrengthInput.addEventListener('input', () => {
-            if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
-            const newStrength = parseInt(totalStrengthInput.value) || 0;
-            const currentData = { ...appState.classes[appState.selectedClass], totalStrength: newStrength };
-            saveData(appState.selectedClass, currentData);
-        });
-
-        function createCountHandler(key, increment) {
-            return () => {
+            resetBtn.addEventListener('click', () => {
                 if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
                 const cls = appState.classes[appState.selectedClass];
                 const date = attendanceDateInput.value || todayDateStr();
                 const currentRecords = cls.records || {};
-                const currentRecord = currentRecords[date] || { sickCount: 0, absenceCount: 0 };
-                
-                let newCount = currentRecord[key];
-                if (increment) {
-                    if (currentRecord.sickCount + currentRecord.absenceCount < cls.totalStrength) {
-                        newCount++;
-                    }
-                } else {
-                    if (newCount > 0) {
-                        newCount--;
-                    }
-                }
-
-                const newRecords = { ...currentRecords, [date]: { ...currentRecord, [key]: newCount } };
+                const newRecords = { ...currentRecords, [date]: { sickCount: 0, absenceCount: 0 } };
                 const updatedClassData = { ...cls, records: newRecords };
                 saveData(appState.selectedClass, updatedClassData);
-            };
+            });
+
+            deleteClassBtn.addEventListener('click', () => {
+                if (!appState.selectedClass) return;
+                deleteClass(appState.selectedClass);
+            });
         }
 
-        incrementSickBtn.addEventListener('click', createCountHandler('sickCount', true));
-        decrementSickBtn.addEventListener('click', createCountHandler('sickCount', false));
-        incrementAbsenceBtn.addEventListener('click', createCountHandler('absenceCount', true));
-        decrementAbsenceBtn.addEventListener('click', createCountHandler('absenceCount', false));
-
-        resetBtn.addEventListener('click', () => {
-            if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
-            const cls = appState.classes[appState.selectedClass];
-            const date = attendanceDateInput.value || todayDateStr();
-            const currentRecords = cls.records || {};
-            const newRecords = { ...currentRecords, [date]: { sickCount: 0, absenceCount: 0 } };
-            const updatedClassData = { ...cls, records: newRecords };
-            saveData(appState.selectedClass, updatedClassData);
-        });
-
-        deleteClassBtn.addEventListener('click', () => {
-            if (!appState.selectedClass) return;
-            deleteClass(appState.selectedClass);
-        });
-
+        // Initialize the app on page load
         function initialize() {
             loadingIndicator.style.display = 'block';
+            appContainer.classList.add('disabled-ui');
             authenticateUser();
             attendanceDateInput.value = todayDateStr();
             appState.selectedDate = todayDateStr();
+
+            // Set up event listeners after authentication is ready
+            onAuthStateChanged(auth, user => {
+                if (user) {
+                    // Set up event listeners once user is authenticated
+                    setupEventListeners();
+                }
+            });
         }
 
         initialize();
