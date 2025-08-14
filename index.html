@@ -113,7 +113,8 @@
             </div>
 
             <!-- Actions -->
-            <div class="mt-8 grid grid-cols-2 gap-4">
+            <div class="mt-8 grid grid-cols-3 gap-4">
+                <button id="save-btn" class="btn w-full bg-blue-600 text-white font-semibold py-3 rounded-lg hover:bg-blue-700">Save</button>
                 <button id="reset-btn" class="btn w-full bg-gray-700 text-white font-semibold py-3 rounded-lg hover:bg-gray-800">Reset</button>
                 <button id="delete-class-btn" class="btn w-full bg-red-600 text-white font-semibold py-3 rounded-lg hover:bg-red-700">Delete Class</button>
             </div>
@@ -170,7 +171,6 @@
         const classManagementSection = document.getElementById('class-management-section');
         const datePickerSection = document.getElementById('date-picker-section');
 
-
         const totalStrengthInput = document.getElementById('total-strength');
         const presentCountDisplay = document.getElementById('present-count');
         const sickCountDisplay = document.getElementById('sick-count');
@@ -181,6 +181,7 @@
         const incrementAbsenceBtn = document.getElementById('increment-absence');
         const decrementAbsenceBtn = document.getElementById('decrement-absence');
 
+        const saveBtn = document.getElementById('save-btn'); // New save button
         const resetBtn = document.getElementById('reset-btn');
         const deleteClassBtn = document.getElementById('delete-class-btn');
 
@@ -481,6 +482,18 @@
             decrementSickBtn.addEventListener('click', createCountHandler('sickCount', false));
             incrementAbsenceBtn.addEventListener('click', createCountHandler('absenceCount', true));
             decrementAbsenceBtn.addEventListener('click', createCountHandler('absenceCount', false));
+
+            // New save button event listener
+            saveBtn.addEventListener('click', () => {
+                if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
+                const cls = appState.classes[appState.selectedClass];
+                const date = attendanceDateInput.value || todayDateStr();
+                const currentRecords = cls.records || {};
+                const currentRecord = currentRecords[date] || { sickCount: 0, absenceCount: 0 };
+                const updatedClassData = { ...cls, records: { ...currentRecords, [date]: currentRecord } };
+                saveData(appState.selectedClass, updatedClassData);
+                showMessage("Attendance saved successfully!");
+            });
 
             resetBtn.addEventListener('click', () => {
                 if (!appState.selectedClass || !appState.classes[appState.selectedClass]) return;
